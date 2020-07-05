@@ -3,9 +3,9 @@ title: "Sentiment Text Mining"
 author: "Sam Vuong, Raymond (shanhua) Huang, Carmon Ho, Kyle Murphy"
 date: "July 2020"
 output:
-  word_document: default
   html_document: default
   pdf_document: default
+  word_document: default
 ---
 ## Introduction
 
