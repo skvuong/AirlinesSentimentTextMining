@@ -1,0 +1,309 @@
+#--------------------------------------------------------------------------------------
+############### Sentiment Text Mining  ################################################
+#--------------------------------------------------------------------------------------
+
+#--------------------------------------------------------------------------------------
+############### Install and load the required packages
+#--------------------------------------------------------------------------------------
+if(!require(caTools)) 
+  install.packages("caTools")
+if(!require(dplyr)) 
+  install.packages("dplyr")
+if(!require(forcats)) 
+  install.packages("forcats")
+if(!require(ggplot2)) 
+  install.packages("ggplot2")
+if(!require(ggthemes)) 
+  install.packages("ggthemes")
+if(!require(lubridate)) 
+  install.packages("lubridate")
+if(!require(mgsub)) 
+  install.packages("mgsub")
+if(!require(RColorBrewer)) 
+  install.packages("RColorBrewer")
+if(!require(randomForest)) 
+  install.packages("randomForest")
+if(!require(scales)) 
+  install.packages("scales")
+if(!require(stringr)) 
+  install.packages("stringr")
+if(!require(SnowballC)) 
+  install.packages("SnowballC")
+if(!require(stopwords)) 
+  install.packages("stopwords")
+if(!require(syuzhet)) 
+  install.packages("syuzhet")
+if(!require(tm)) 
+  install.packages("tm")
+if(!require(wordcloud))
+  install.packages("wordcloud")
+if(!require(wordcloud2))
+  install.packages("wordcloud2")
+
+# Load Libraries
+library(caTools)        #data wrangling
+library(dplyr)          #data manipulation
+library(forcats)        #ggplot frequency
+library(ggplot2)        #visualizations
+library(ggthemes)       #visualizations
+library(lubridate)
+library(mgsub)
+library(RColorBrewer)   #color palettes
+library(randomForest)   #randomforest
+library(scales)
+library(stringr)
+library(syuzhet)
+library(SnowballC)      #text stemming
+library(stopwords)      #stop-words removal
+library(tm)             #text mining
+library(wordcloud)      #word-cloud generator
+library(wordcloud2)     #word-cloud generator
+
+#--------------------------------------------------------------------------------------
+############### Loading Data
+#--------------------------------------------------------------------------------------
+tweets <- read.csv("tweets.csv",header = TRUE)
+
+#--------------------------------------------------------------------------------------
+############### Data Exploration Analysis
+#--------------------------------------------------------------------------------------
+
+#Check dataset size and column names
+dim(tweets)
+names(tweets)
+
+#How many unique tweets are in the dataset?
+length(unique(tweets$tweet_id))
+
+#How many users have tweeted?
+length(unique(tweets$name))
+
+#Average characters per tweet?
+mean(str_count(tweets$text))
+
+#Average words per tweet?
+mean(str_count(tweets$text, '\\s+')+1)
+
+#Average tweet characters per sentiment?
+tweets$numofcharsintweet <- str_count(tweets$text)
+aggregate(tweets$numofcharsintweet, by=list(SentID=tweets$airline_sentiment), FUN= mean)
+
+#Average tweet words per sentiment?
+tweets$numofwordsintweet <- str_count(tweets$text, '\\s+')+1
+aggregate(tweets$numofwordsintweet, by=list(SentID=tweets$airline_sentiment), FUN= mean)
+
+#What are the types of sentiments?
+unique(tweets$airline_sentiment)
+
+#Count of sentiments?
+tweets %>% group_by(airline_sentiment) %>% summarize(n=n())
+
+#Count of Negative Reasons?
+tweets %>% group_by(negativereason) %>% summarize(n=n())
+
+#--------------------------------------------------------------------------------------
+############### Data Visualization
+#--------------------------------------------------------------------------------------
+
+#1. Tweet Sentiment Distribution
+ggplot(tweets, aes(x = airline_sentiment)) +
+  geom_bar(stat = "count", width=0.3, fill="#FF9999", colour="black") +
+  geom_text(stat='count', aes(label=..count..), vjust=-0.5)
+
+#2. Tweet Text Sentiment Scores
+#Note that get_nrc_sentiment() function runs very slow
+#It could be the number tweet text messages we have
+#
+#review <- as.character(tweets$text)
+#s <- get_nrc_sentiment(review)
+#review_sentiment <- cbind(tweets$text,s)
+#barplot(colsums(s), col=rainbow(10),
+#        ylab='count', main='Sentiment Scores for Tweets')
+
+#3. Tweet Text Length vs Sentiment Distribution
+tweets$length = nchar(as.character(tweets$text))
+ggplot(tweets, aes(x = length, fill = airline_sentiment)) + 
+  geom_bar() +
+  scale_x_continuous() +
+  ggtitle("Tweet Text Length vs Sentiment Distribution") +
+  xlab("Tweet Length") +
+  ylab("Tweet Count") +
+  theme(text = element_text(size=12))
+
+#4. Word-Cloud chart for Negative Sentiment Tweets (Top 100)
+special_terms <-  c("https\\S*", "@\\S*", "amp", "[\r\n]","[[:punct:]]","@united", "@VirginAmerica","@usairways","@americanair","@united","@jetblue")
+negative <- tweets %>% filter(airline_sentiment == "negative")
+negativetext <-negative$text
+negativetext <- mgsub(negativetext, special_terms, c("","","","","","","","","","",""))
+docsnegative <- Corpus(VectorSource(negativetext))
+dtmnegative <- TermDocumentMatrix(docsnegative) 
+matrixnegative <- as.matrix(dtmnegative) 
+wordsnegative <- sort(rowSums(matrixnegative),decreasing=TRUE) 
+dfnegative <- data.frame(word = names(wordsnegative),freq=wordsnegative)
+set.seed(1234) # for reproducibility 
+wordcloud(words = dfnegative$word, freq = dfnegative$freq, min.freq = 1,
+          max.words=100, random.order=FALSE, rot.per=0.35, colors=brewer.pal(8,"Dark2"))
+
+#5. Word-Cloud chart for Neutral Sentiment Tweets (Top 100)
+neutral <- tweets %>% filter(airline_sentiment == "neutral")
+neutraltext <-neutral$text
+neutraltext <- mgsub(neutraltext, special_terms, c("","","","","","","","","","",""))
+docsneutral <- Corpus(VectorSource(neutraltext))
+dtmneutral <- TermDocumentMatrix(docsneutral) 
+matrixneutral <- as.matrix(dtmneutral) 
+wordsneutral <- sort(rowSums(matrixneutral),decreasing=TRUE) 
+dfneutral <- data.frame(word = names(wordsneutral),freq=wordsneutral)
+set.seed(1234) # for reproducibility 
+wordcloud(words = dfneutral$word, freq = dfneutral$freq, min.freq = 1,
+          max.words=100, random.order=FALSE, rot.per=0.35, colors=brewer.pal(8,"Dark2"))
+
+#6. Word-Cloud chart for Positive Sentiment Tweets (Top 100)
+positive <- tweets %>% filter(airline_sentiment == "positive")
+positivetext <-positive$text
+positivetext <- mgsub(positivetext, special_terms, c("","","","","","","","","","",""))
+docspositive <- Corpus(VectorSource(positivetext))
+dtmpositive <- TermDocumentMatrix(docspositive) 
+matrixpositive <- as.matrix(dtmpositive) 
+wordspositive <- sort(rowSums(matrixpositive),decreasing=TRUE) 
+dfpositive <- data.frame(word = names(wordspositive),freq=wordspositive)
+set.seed(1234) # for reproducibility 
+wordcloud(words = dfpositive$word, freq = dfpositive$freq, min.freq = 1,
+          max.words=100, random.order=FALSE, rot.per=0.35, colors=brewer.pal(8,"Dark2"))
+
+#7. Airlines Sentimental Distribution
+ggplot(tweets, aes(x = airline,fill = airline_sentiment )) + 
+  geom_bar(stat = "count")
+
+#8. Negative Tweet Reasons Distribution
+ggplot(tweets, aes(x = fct_infreq(factor(negativereason)))) + 
+  geom_bar(stat = "count") + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+#9a. American Airline - Negative Reason confident Distribution
+American <- tweets %>% filter(airline == "American")
+American %>% 
+  ggplot(aes(x= negativereason_confidence)) +
+    geom_histogram(color = "white") + 
+    ggtitle("American Airlines - Count of Negative Reason Confidence") +
+    xlab("Negative Reason Confidence") +
+    ylab("Count of Confidence") +
+    scale_y_continuous(labels = comma) + 
+    theme_economist()
+
+#9b. United Airline - Negative Reason confident Distribution
+United <- tweets %>% filter(airline == "United")
+United %>%
+  ggplot(aes(x= negativereason_confidence)) +
+  geom_histogram(color = "white") + 
+  ggtitle("United Airlines - Count of Negative Reason Confidence") +
+  xlab("Negative Reason Confidence") +
+  ylab("Count of Confidence") +
+  scale_y_continuous(labels = comma) + 
+  theme_economist()
+
+#9c. US Airways - Negative Reason confident Distribution
+USAirways <- tweets %>% filter(airline == "US Airways")
+USAirways %>%
+  ggplot(aes(x= negativereason_confidence)) +
+    geom_histogram(color = "white") + 
+    ggtitle("US Airways - Count of Negative Reason Confidence") +
+    xlab("Negative Reason Confidence") +
+    ylab("Count of Confidence") +
+    scale_y_continuous(labels = comma) + 
+    theme_economist()
+
+#9d. Delta Airline - Negative Reason confident Distribution
+Delta<- tweets %>% filter(airline == "Delta")
+Delta %>%
+  ggplot(aes(x= negativereason_confidence)) +
+    geom_histogram(color = "white") + 
+    ggtitle("Delta - Count of Negative Reason Confidence") +
+    xlab("Negative Reason Confidence") +
+    ylab("Count of Confidence") +
+    scale_y_continuous(labels = comma) + 
+    theme_economist()
+
+#--------------------------------------------------------------------------------------
+# Function: text_to_Corpus_document
+#   This function converts a text vector to a Corpus document object and 
+#   perform common text tokenization, special characters/words removal and stemming
+#--------------------------------------------------------------------------------------
+text_to_Corpus_document <- function(text_data)
+{
+  corpus_docs <- Corpus(VectorSource(text_data))
+  
+  toSpace <- content_transformer(function (x , pattern ) gsub(pattern, " ", x))
+  corpus_docs <- tm_map(corpus_docs, toSpace, "/")
+  corpus_docs <- tm_map(corpus_docs, toSpace, "@")
+  corpus_docs <- tm_map(corpus_docs, toSpace, "\\|")
+  
+  airline_stopwords <- c("flight","usairway","americanair","southwestair",
+                         "jetblu","virginamerica","united","delta")
+  
+  corpus_docs <- tm_map(corpus_docs, content_transformer(tolower))
+  corpus_docs <- tm_map(corpus_docs, removePunctuation)
+  corpus_docs <- tm_map(corpus_docs, removeNumbers)
+  corpus_docs <- tm_map(corpus_docs, removeWords, stopwords("english"))
+  corpus_docs <- tm_map(corpus_docs, removeWords, airline_stopwords)
+  
+  corpus_docs <- tm_map(corpus_docs, stripWhitespace)
+  corpus_docs <- tm_map(corpus_docs, stemDocument)
+  
+  return(corpus_docs)
+}
+
+#--------------------------------------------------------------------------------------
+############### Data Preparation for Modeling
+#--------------------------------------------------------------------------------------
+
+# Get tweet text messages and sentiment classification from tweets dataframe
+text_data <- tweets$text
+sentiment <- tweets$airline_sentiment
+
+# Convert text messages to Corpus document
+docs <- text_to_Corpus_document(text_data)
+
+# Convert to Document-Term Matrix
+# Remove Sparse Terms
+dtm = DocumentTermMatrix(docs)
+dtm = removeSparseTerms(dtm,sparse = 0.99)
+
+# Convert matrix to dataframe
+model_data = as.data.frame(as.matrix(dtm))
+
+# Convert sentiment classification to factor
+sentiment <- as.character(sentiment)
+sentiment <- as.factor(sentiment)
+
+# Add sentiment classification to dataframe
+model_data$sentiment = sentiment
+
+#--------------------------------------------------------------------------------------
+############### Create a Random Forest model
+#--------------------------------------------------------------------------------------
+
+# Use 80/20 split for train/test sets
+set.seed(123)
+split = sample.split(sentiment,SplitRatio = 0.80)
+train = subset(model_data,split = TRUE)
+test  = subset(model_data,split = FALSE)
+
+# Create a Random Forest model with ntree = 10
+predict_rf = randomForest(x = train[,-length(train)], y = train$sentiment, ntree=10)
+summary(predict_rf)
+
+#--------------------------------------------------------------------------------------
+############### Model Evaluation
+#--------------------------------------------------------------------------------------
+# Prediction on test set
+y_pred = predict(predict_rf, newdata = test[,-length(test)])
+
+# Confusion matrix
+confusion_matrix = table(test$sentiment, y_pred)
+confusion_matrix
+
+# Accuracy
+accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
+accuracy
+
+#######################################################################################
