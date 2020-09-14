@@ -1,2 +1,2 @@
-# Sentiment Text Mining System
-Code for a Sentiment Text Mining System
+# Airlines Sentiment Text Mining System
+Code for a Airlines Sentiment Text Mining System
